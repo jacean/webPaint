@@ -16,13 +16,13 @@
     <script src="js/esl.js"></script>
     <style>
         .contain {
-            height: 500px;
+            /*height: 500px;*/
             overflow: scroll;
         }
         
         .main {
             width: 100%;
-            height: 500px;
+            /*height: 500px;*/
             border: 1px solid #ccc;
             padding: 10px;
             /*background-image: url(ning.jpg);*/
@@ -35,12 +35,54 @@
     <script type="text/javascript" src='js/urlparms.js'>
     </script>
     <script type="text/javascript">
-        var id = "123";
-        var src = "ning.jpg";
+        var UID = "123";
+        var IMGSRC = "ning.jpg";
         var args = GetUrlParms();
         if (args["id"] != undefined && args["src"] != undefined) {
-            id = args["id"];
-            src = args["src"];
+            UID = args["id"];
+            IMGSRC = args["src"];
+        }
+    </script>
+    <script>
+        /**
+         * 与jsp交互api
+         */
+        function setMarkContent(id, mid, operate, type, ctx) {
+            window.top.setMarkContent(id, mid, operate, type, ctx);
+        }
+        /**
+         * @callback
+         * @param {string} id:每张图片一个id
+         * @param {string} mid：markid，每个标记一个id
+         * @param {string} type：标记内容类型，VAPT
+         * @param {string} ctx：内容，VAP则传递url，T传递文本
+         */
+        function setMarkContentCallback(id, mid, operate, type, data) {
+            //程序逻辑保证当前选中既是mid对应shape
+            if (data.status == "ok") {
+                switch (operate) {
+                    case "A":
+                        moditxt(type, data.message);
+                        break;
+                    case "D":
+                        deleteShape();
+                        break;
+                    case "U":
+                        moditxt(type, data.message);
+                        break;
+                    case "S":
+                        saveImg(data.message);
+                        break;
+                    case "R":
+                        reset();
+                        break;
+                    default:
+                        break;
+                }
+            } else {
+                alert(data.message);
+            }
+
         }
     </script>
 </head>
@@ -62,19 +104,18 @@
                     <button type="button" class="btn btn-default col-xs-2" style="float:right" id="zoomout" onclick="zoomShape(-10)"> <span class="glyphicon glyphicon-minus-sign" aria-hidden="true"></span></button>
                     <div class="col-xs-8">
                         <div class="input-group">
-                            <input type="text" class="form-control" id="txt" />
+                            <input type="text" class="form-control" id="txt" readonly/>
                             <span class="input-group-btn">
-                    <button type="button" class="btn btn-default " id="but" onclick="moditxt(shape.c)">ok</button>
+                    <button type="button" class="btn btn-default " id="modiBut" onclick="setMarkContent(UID, shape.c.id, 'U')">修改</button>
                 </span>
                         </div>
                     </div>
                 </div>
                 <div class="row">
                     <button type="button" class="btn btn-default col-xs-2" id="Circle" onclick="setType('C')"><span class="glyphicon glyphicon-record" aria-hidden="true"></span></button>
-                    <!--<button type="button" class="btn btn-default " id="Ellipse" onclick="setType('E')">椭圆</button>-->
+                    <button type="button" class="btn btn-default col-xs-2" id="Ellipse" onclick="setType('E')"><span class="glyphicon glyphicon-eye-open" aria-hidden="true"></span></button>
                     <button type="button" class="btn btn-default col-xs-2" id="Rectangle" onclick="setType('R')"><span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span></button>
                     <button type="button" class="btn btn-default col-xs-2" id="Text" onclick="setType('T')"><span class="glyphicon glyphicon-text-size" aria-hidden="true"></span></button>
-                    <button type="button" class="btn btn-default col-xs-2" id="delete" onclick="deleteShape()"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></button>
                     <!-- Single button -->
                     <div class="btn-group ">
                         <select id="select" class="form-control col-xs-2">
@@ -84,13 +125,14 @@
                 <option value="3">黄</option>                
             </select>
                     </div>
+                    <button type="button" class="btn btn-default col-xs-2" id="delete" onclick="setMarkContent(UID, shape.c.id, 'D');"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></button>
                 </div>
                 <div class="row">
-                    <button type="button" class="btn btn-default col-xs-2" id="reset" onclick="reset()"><span class="glyphicon glyphicon-refresh" aria-hidden="true"></span></button>
+                    <button type="button" class="btn btn-default col-xs-2" id="reset" onclick="setMarkContent(UID, null, 'R')"><span class="glyphicon glyphicon-refresh" aria-hidden="true"></span></button>
                     <button id="save" type="button" class="btn btn-default col-xs-2" onclick="saveImg()"><span class="glyphicon glyphicon-floppy-open" aria-hidden="true"></span></button>
                     <!--<button id="down" type="button" class="btn btn-default " onclick="downImg()">下载</button>-->
 
-                    <div class="btn-group col-xs-2">
+                    <!--<div class="btn-group col-xs-2">
                         <input id="file" name="file" type="file" style="display:none" accept="">
                         <a type="button" class="btn btn-default" onclick="$('input[id=file]').click();">选择图片</a>
                         <script type="text/javascript">
@@ -100,7 +142,7 @@
                                 readAsDataURL();
                             });
                         </script>
-                    </div>
+                    </div>-->
                 </div>
             </div>
         </div>
@@ -115,12 +157,12 @@
 
         // global variable
         var clientWidth = $(window).width();
+        var clientHeight = $(window).height();
         $("#contain").css("width", clientWidth);
-        $("#contain").css("height", 500);
-        // $("#main").css("width", clientWidth);
+        $("#contain").css("height", clientHeight - 105);
 
         var type = "N"; //insert shape type,N,C,E,T,R
-        var dFlag = false; //delete flag
+
         var pos = {
             'x': 100,
             'y': 290
@@ -132,10 +174,11 @@
         var zr; //zRender对象
         var zrColor; //用以自定义color的
         var colorIdx = 0; //颜色选择id，和zrColor配套
-        var g; //group，所有操作君子啊group上
+        var g; //group，所有操作均在一层group上
         var origin = 1.0; //放大缩小比率
+        var markId = 1;//标记编号
         var backimg; //背景图片即所要绘制图片的shape对象
-        var backimgurl = "ning.jpg"; //背景图片的url，用以更新img
+        var backimgurl = IMGSRC; //背景图片的url，用以更新img
         var backsize = {
             width: 500,
             height: 500
@@ -144,8 +187,7 @@
             x: 0,
             y: 0
         }
-        var markId = 1;
-        var list = new Array();
+
         //global variable
 
         // Dom event
@@ -170,7 +212,6 @@
             zr.addGroup(g);
             zr.refresh();
             markId = 1;
-            list = new Array();
             origin = 1;
             setBackimg(backimgurl);
 
@@ -217,7 +258,7 @@
 
         // delete flag
         function deleteShape() {
-            if (shape.c != null) {
+            if (shape.c != null && shape.c.id != "backimg") {
                 g.removeChild(shape.c);
                 // setSelected(shape.p);
                 shape.c = null; //因为只保存两步选择，所以就不做删除后自动回退一步了，有点鸡肋
@@ -229,7 +270,6 @@
         function saveImg() {
             //console.log(zr.toDataURL("image/jpeg")); 
             var data = zr.toDataURL("image/png");
-
             /***js handle failed,change to server with PHP***/
             //data = data.replace("data:image/png;base64,", "");         
             //oMyForm.append("img", window.atob(data));
@@ -237,7 +277,7 @@
             //服务器处理图片编码转存
             var oMyForm = new FormData();
             oMyForm.append("img", data);
-            oMyForm.append("id", new Date().getTime());
+            oMyForm.append("id", UID);
             oMyForm.append("list", list);
             $.ajax({
                 cache: true,
@@ -253,6 +293,7 @@
                 success: function(data) {
                     if (data.status == "ok") {
                         alert("上传成功！");
+                        setMarkContent(UID, null, 'S', null, data.result);
                     } else {
                         alert("上传失败:" + data.result);
                     }
@@ -270,27 +311,33 @@
         }
 
         // 修改shape的text
-        function moditxt(s) {
-
-            // 不修改图形本身text
-            // zr.modShape(s.id, {
-            //     style: {
-            //         text: document.getElementById("txt").value
-            //     }
-            // });
-            var repeate = false;
-            for (var i = 0; i < list.length; i++) {
-                if (list[i][0] == s.id) {
-                    list[i][1] = document.getElementById("txt").value;
-                    repeate = true;
+        function moditxt(params) {
+            var text = shape.c.id;
+            if (arguments.length > 1) {
+                if (arguments[1] != "") {
+                    text +=". "+ arguments[0] + ":" + arguments[1];
+                } else {
+                    text = arguments[0];
                 }
+                // switch (arguments[0]) {
+                //     case "V":
+                //     case "A":
+                //     case "P":
+                //         break;
+                //     case "T":
+                //         break;
+                //     default:
+                //         break;
+                // }
             }
+            zr.modShape(shape.c.id, {
+                style: {
+                    text: text
+                }
+            });
+            $("#txt").val(text);
 
-            if (!repeate) {
-                list.push(new Array(s.id, document.getElementById("txt").value));
-            }
-            document.getElementById("txt").blur();
-            zr.render();
+            zr.refresh();
         }
 
         function zoomShape(value, type) {
@@ -393,7 +440,6 @@
         function clickHandle(params) {
             //alert(params.target.id);
             setSelected(params.target);
-            //document.getElementById("txt").focus(); //使用focus()方法获得定位
         }
 
         function mousedownHandle(params) {
@@ -407,23 +453,43 @@
             shape.c = s;
             if (shape.p != null) {
                 if (shape.p._name != "ImageShape") {
-                    zr.modShape(shape.p.id, {
-                        style: {
-                            color: zrColor.alpha(zrColor.getColor(colorIdx), 0),
-                        }
-                    })
+
+                    if (shape.p._name == "TextShape") {
+                        zr.modShape(shape.p.id, {
+                            style: {
+                                color: zrColor.getColor(colorIdx),
+                            }
+                        })
+                    } else {
+                        zr.modShape(shape.p.id, {
+                            style: {
+                                color: zrColor.alpha(zrColor.getColor(colorIdx), 0),
+                            }
+                        })
+                    }
                 }
             }
             if (shape.c != null) {
                 if (shape.c._name != "ImageShape") {
-                    zr.modShape(shape.c.id, {
-                        style: {
-                            color: zrColor.alpha(zrColor.getColor(colorIdx), 0.4),
-                        }
-                    });
+                    if (shape.c._name == "TextShape") {
+                        zr.modShape(shape.c.id, {
+                            style: {
+                                color: zrColor.getColor(colorIdx),
+                            }
+                        });
+                    } else {
+                        zr.modShape(shape.c.id, {
+                            style: {
+
+                                color: zrColor.alpha(zrColor.getColor(colorIdx), 0.4),
+                            }
+                        })
+                    }
                     $("#txt").val(s.style.text);
+                    $("#modiBut").prop("disabled", false);
                 } else {
                     $("#txt").val(shape.c.style.image);
+                    $("#modiBut").prop("disabled", true);
                 }
             }
             zr.refresh();
@@ -519,8 +585,8 @@
                 style: {
                     x: pos.x,
                     y: pos.y,
-                    a: 200,
-                    b: 100,
+                    a: 100,
+                    b: 50,
                     brushType: 'both',
                     color: zrColor.alpha(zrColor.getColor(colorIdx), 0),
                     strokeColor: zrColor.getColor(colorIdx),
@@ -548,11 +614,12 @@
                     height: 100,
                     radius: [0, 0],
                     brushType: 'both',
-                    color: zrColor.alpha(zrColor.getColor(colorIdx), 0.3),
+                    color: zrColor.alpha(zrColor.getColor(colorIdx), 0),
                     strokeColor: zrColor.getColor(colorIdx),
                     lineWidth: 8,
                     lineJoin: 'round',
-                    text: 'rectangle'
+                    text: 'rectangle',
+                    textPosition: 'inside'
                 },
                 zlevel: z,
                 draggable: true,
@@ -574,11 +641,11 @@
                     y: pos.y,
                     brushType: 'fill',
                     color: zrColor.getColor(colorIdx),
-                    shadowColor: 'yellow',
-                    shadowBlur: 10,
+                    //shadowColor: 'yellow',
+                    //shadowBlur: 5,
                     lineWidth: 3,
-                    text: 'jacean',
-                    textFont: 'normal 50px verdana',
+                    text: 'mark',
+                    textFont: 'normal 40px verdana',
                     textAlign: 'center',
                     textBaseline: 'top'
                 },
@@ -638,10 +705,14 @@
                     }
                     if (temp != null) {
                         temp.style.text = markId;
-                        temp.style.textFont = "normal 50px verdana";
-                        temp.id = "mark_" + markId++;
+                        if (type != "T") {
+                            temp.style.textFont = "normal 20px verdana";
+                        }
+                        temp.style.align = "left";
+                        temp.id = markId++;
                         g.addChild(temp);
                         setSelected(temp);
+                        setMarkContent(UID, temp.id, "A");
                     } else {
                         setSelected(params.target);
                     }

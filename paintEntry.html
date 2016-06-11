@@ -11,14 +11,70 @@
     <!-- Bootstrap core CSS -->
     <script src="//cdn.bootcss.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
     <link href="//cdn.bootcss.com/bootstrap/3.3.5/css/bootstrap.min.css" rel="stylesheet">
+
 </head>
 
 <body>
-    <div>paintEntry, 传递参数ID和图片url
+    <!--<div>paintEntry, 传递参数ID和图片url
     </div>
-
     <button onclick="window.location.href='paint.html?id=123&src=ning.jpg'">paint</button>
-    <ifream id="paintFrame"></ifream>
+    <br>-->
+    <iframe id="paintFrame" src='paint.html?id=123&src=ning.jpg' style="width:370px;height:600px"></iframe>
 </body>
+<script>
+    /**
+     * id:每张图片一个id
+     * mid：markid，每个标记一个id
+     * type：标记内容类型，VAPT
+     * ctx：内容，VAP则传递url，T传递文本
+     */
+    function setMarkContent(id, mid, operate, type, ctx) {
+        var data = new Object();
+        /**
+         * A:add
+         * D:delete
+         * U:update
+         * Q:query
+         */
+        switch (operate) {
+            case "A":
+                //alert("选择标记内容，V，A，P，T");
+                //数据库insert操作
+                var type = "T";
+                var ctx = "(add):" + id + "_" + mid;
+                data.status = "ok";
+                data.message = ctx;
+                $('#paintFrame')[0].contentWindow.setMarkContentCallback(id, mid, operate, type, data);
+                break;
+            case "D":
+                //alert("删除所选标记")
+                data.status = "ok";
+                $('#paintFrame')[0].contentWindow.setMarkContentCallback(id, mid, operate, type, data);
+
+                break;
+            case "U":
+                //alert("修改标记内容，V，A，P，T");
+                //数据库update操作
+                var type = "T";
+                var ctx = "(update):" + id + "_" + mid;
+                data.status = "ok";
+                data.message = ctx;
+                $('#paintFrame')[0].contentWindow.setMarkContentCallback(id, mid, operate, type, data);
+                break;
+            case "S":
+
+                alert("图片和标记信息已保存，关闭iframe,图片保存路径在"+ctx);                
+                break;
+            case "R":
+                alert("重置此id相关图片标记");
+                data.status = "ok";
+                type = null;
+                $('#paintFrame')[0].contentWindow.setMarkContentCallback(id, mid, operate, type, data);
+                break;
+            default:
+                break;
+        }
+    }
+</script>
 
 </html>
