@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>ZRender</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../plugins/jquery/jquery-1.10.2.min.js"></script>
+    <!-- Bootstrap core CSS -->
+    <script src="../plugins/bootstrap/js/bootstrap.min.js"></script>
+    <link href="../plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <!--Step:1 Import a module loader, such as esl.js or require.js-->
+    <!--Step:1 引入一个模块加载器，如esl.js或者require.js-->
+    <script src="../plugins/zrender/js/esl.js"></script>
+    <style>
+        .contain {
+            /*height: 500px;*/
+            overflow: scroll;
+        }
+        
+        .main {
+            width: 100%;
+            /*height: 500px;*/
+            border: 1px solid #ccc;
+            padding: 10px;
+
+            background-size: cover;
+            /*cover控制缩放以全覆盖*/
+        }
+    </style>
+    <script type="text/javascript" src="../plugins/jstool/browser.js">
+    </script>
+    <script type="text/javascript" src='../plugins/jstool/urlparms.js'>
+    </script>
+    <script type="text/javascript">
+        var UID = "123";
+        var IMGSRC = "../resource/img/ning.jpg";
+        var args = GetUrlParms();
+        if (args["id"] != undefined && args["src"] != undefined) {
+            UID = args["id"];
+            IMGSRC = args["src"];
+        }
+    </script>
+    <script>
+        /**
+         * 与jsp交互api
+         */
+        function setMarkContent(id, mid, operate, type, ctx) {
+            window.top.setMarkContent(id, mid, operate, type, ctx);
+        }
+        /**
+         * @callback
+         * @param {string} id:每张图片一个id
+         * @param {string} mid：markid，每个标记一个id
+         * @param {string} type：标记内容类型，VAPT
+         * @param {string} ctx：内容，VAP则传递url，T传递文本
+         */
+        function setMarkContentCallback(id, mid, operate, type, data) {
+            //程序逻辑保证当前选中既是mid对应shape
+            if (data.status == "ok") {
+                switch (operate) {
+                    case "A":
+                        moditxt(type, data.message);
+                        break;
+                    case "D":
+                        deleteShape();
+                        break;
+                    case "U":
+                        moditxt(type, data.message);
+                        break;
+                    case "S":
+                        saveImg(data.message);
+                        break;
+                    case "R":
+                        reset();
+                        break;
+                    default:
+                        break;
+                }
+            } else {
+                alert(data.message);
+            }
+
+        }
+    </script>
+</head>
+
+<body>
+    <!--container-->
+    <div id="contain" class="contain">
+        <!--Step:2 Prepare a dom for ZRender which (must) has size (width & hight)-->
+        <!--Step:2 为ZRender准备一个具备大小（宽高）的Dom-->
+        <div id="main" class="main">
+        </div>
+    </div>
+    <!--footer-->
+    <div>
+        <div class="btn-group" role="group" aria-label="...">
+            <div class="container">
+                <div class="row">
+                    <button type="button" class="btn btn-default col-xs-2" style="float:left" id="zoomin" onclick="zoomShape(10)"> <span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span></button>
+                    <button type="button" class="btn btn-default col-xs-2" style="float:right" id="zoomout" onclick="zoomShape(-10)"> <span class="glyphicon glyphicon-minus-sign" aria-hidden="true"></span></button>
+                    <div class="col-xs-8">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="txt" readonly/>
+                            <span class="input-group-btn">
+                    <button type="button" class="btn btn-default " id="modiBut" onclick="setMarkContent(UID, shape.c.id, 'U')">修改</button>
+                </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <button type="button" class="btn btn-default col-xs-2" id="Circle" onclick="setType('C')"><span class="glyphicon glyphicon-record" aria-hidden="true"></span></button>
+                    <button type="button" class="btn btn-default col-xs-2" id="Ellipse" onclick="setType('E')"><span class="glyphicon glyphicon-eye-open" aria-hidden="true"></span></button>
+                    <button type="button" class="btn btn-default col-xs-2" id="Rectangle" onclick="setType('R')"><span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span></button>
+                    <button type="button" class="btn btn-default col-xs-2" id="Text" onclick="setType('T')"><span class="glyphicon glyphicon-text-size" aria-hidden="true"></span></button>
+                    <!-- Single button -->
+                    <div class="btn-group ">
+                        <select id="select" class="form-control col-xs-2">
+                <option value="0">红</option>
+                <option value="1">绿</option>
+                <option value="2">蓝</option>
+                <option value="3">黄</option>                
+            </select>
+                    </div>
+                    <button type="button" class="btn btn-default col-xs-2" id="delete" onclick="setMarkContent(UID, shape.c.id, 'D');"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></button>
+                </div>
+                <div class="row">
+                    <button type="button" class="btn btn-default col-xs-2" id="reset" onclick="setMarkContent(UID, null, 'R')"><span class="glyphicon glyphicon-refresh" aria-hidden="true"></span></button>
+                    <button id="save" type="button" class="btn btn-default col-xs-2" onclick="saveImg()"><span class="glyphicon glyphicon-floppy-open" aria-hidden="true"></span></button>
+                    <!--<button id="down" type="button" class="btn btn-default " onclick="downImg()">下载</button>-->
+
+                    <!--<div class="btn-group col-xs-2">
+                        <input id="file" name="file" type="file" style="display:none" accept="">
+                        <a type="button" class="btn btn-default" onclick="$('input[id=file]').click();">选择图片</a>
+                        <script type="text/javascript">
+                            $('input[id=file]').change(function() {
+                                //进行上传图片和背景更换
+                                // $('#imgshow').val($(this).val());
+                                readAsDataURL();
+                            });
+                        </script>
+                    </div>-->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <script type="text/javascript">
+        if (browser.versions.android || browser.versions.iPhone) {
+            $("#down").hide();
+        }
+
+        // global variable
+        var clientWidth = $(window).width();
+        var clientHeight = $(window).height();
+        $("#contain").css("width", clientWidth);
+        $("#contain").css("height", clientHeight - 105);
+
+        var type = "N"; //insert shape type,N,C,E,T,R
+
+        var pos = {
+            'x': 100,
+            'y': 290
+        }; //postion 
+        var shape = {
+                p: null,
+                c: null
+            } //shape对象，当前选中形状以及上次选中形状
+        var zr; //zRender对象
+        var zrColor; //用以自定义color的
+        var colorIdx = 0; //颜色选择id，和zrColor配套
+        var g; //group，所有操作均在一层group上
+        var origin = 1.0; //放大缩小比率
+        var markId = 1; //标记编号
+        var backimg; //背景图片即所要绘制图片的shape对象
+        var backimgurl = IMGSRC; //背景图片的url，用以更新img
+        var backsize = {
+            width: 500,
+            height: 500
+        }
+        var offset = {
+            x: 0,
+            y: 0
+        }
+
+        //global variable
+
+        // Dom event
+        $('#select').on('change', function() {
+            colorIdx = this.value;
+        });
+        //DOm event
+
+        /** operate function start**/
+        function setType(t) {
+            type = t;
+        }
+
+        function reset() {
+            var Group = require('zrender/Group');
+            zr.clear();
+            g = new Group();
+            g.id = "zrGroup";
+            g.zlevel = 1;
+            backimg = newImage(zr, g, backimgurl);
+            g.addChild(backimg);
+            zr.addGroup(g);
+            zr.refresh();
+            markId = 1;
+            origin = 1;
+            setBackimg(backimgurl);
+            setSelected(backimg);
+        }
+
+        function setBackimg(url) {
+            backimgurl = url;
+
+            /*获取图片原始尺寸 */
+            var start_time = new Date().getTime();
+            var img = new Image();
+            img.src = url + '?' + start_time;
+            // 定时执行获取宽高
+            var check = function() {
+                // 只要任何一方大于0
+                // 表示已经服务器已经返回宽高
+                if (img.width > 0 || img.height > 0) {
+                    var diff = new Date().getTime() - start_time;
+                    //document.body.innerHTML += '<div>from:<span style="color:red;">check</span> : width:' + img.width + ',height:' + img.height + ', time:' + diff + 'ms</div>';
+
+
+                    backsize.width = img.width + 22;
+                    backsize.height = img.height + 22;
+                    $("#main").css("width", backsize.width);
+                    $("#main").css("height", backsize.height);
+
+                    zr.modShape(backimg.id, {
+                        style: {
+                            image: url,
+                            width: img.width,
+                            height: img.height
+                        }
+                    });
+                    zr.resize();
+                    zr.refresh();
+
+                    clearInterval(set);
+                }
+            };
+
+            var set = setInterval(check, 40);
+
+        }
+
+        // delete flag
+        function deleteShape() {
+            if (shape.c != null && shape.c.id != "backimg") {
+                g.removeChild(shape.c);
+                // setSelected(shape.p);
+                shape.c = null; //因为只保存两步选择，所以就不做删除后自动回退一步了，有点鸡肋
+                zr.refresh();
+            }
+        }
+
+        //save iamge to server,eg:/upload/xxx.png
+        function saveImg() {
+            //console.log(zr.toDataURL("image/jpeg")); 
+            var data = zr.toDataURL("image/png");
+            /***js handle failed,change to server with PHP***/
+            //data = data.replace("data:image/png;base64,", "");         
+            //oMyForm.append("img", window.atob(data));
+
+            //服务器处理图片编码转存
+            var oMyForm = new FormData();
+            oMyForm.append("img", data);
+            oMyForm.append("id", UID);
+            $.ajax({
+                cache: true,
+                type: "POST",
+                url: '../server/uploadimg.php',
+                data: oMyForm,
+                async: true,
+                processData: false, // 告诉jQuery不要去处理发送的数据
+                contentType: false, // 告诉jQuery不要去设置Content-Type请求头
+                error: function(request) {
+                    alert("上传失败！" + request.responseText);
+                },
+                success: function(data) {
+                    if (data.status == "ok") {
+                        alert("上传成功！");
+                        setMarkContent(UID, null, 'S', null, data.result);
+                    } else {
+                        alert("上传失败:" + data.result);
+                    }
+                },
+                dataType: "json"
+            });
+
+        }
+
+        // 下载图片，在微信中不可，会造成微信卡死
+        function downImg() {
+            var data = zr.toDataURL("image/png");
+            data = data.replace("image/png", "image/octet-stream;Content-Disposition: attachment;filename=download.png");
+            window.location.href = data;
+        }
+
+        // 修改shape的text
+        function moditxt(params) {
+            var text = shape.c.id;
+            if (arguments.length > 1) {
+                if (arguments[1] != "") {
+                    text += ". " + arguments[0] + ":" + arguments[1];
+                } else {
+                    text = arguments[0];
+                }
+                // switch (arguments[0]) {
+                //     case "V":
+                //     case "A":
+                //     case "P":
+                //         break;
+                //     case "T":
+                //         break;
+                //     default:
+                //         break;
+                // }
+            }
+            zr.modShape(shape.c.id, {
+                style: {
+                    text: text
+                }
+            });
+            $("#txt").val(text);
+
+            zr.refresh();
+        }
+
+        function zoomShape(value, type) {
+            var eventTool = require('zrender/tool/event');
+            // var delta = eventTool.getDelta(params.event);
+            var delta = value;
+
+            if (shape.c._name == "ImageShape") {
+                origin += (delta > 0 ? 0.1 : -0.1);
+                var width = backsize.width * origin;
+                var height = backsize.height * origin;
+                $("#main").css("width", width);
+                $("#main").css("height", height);
+                zr.modGroup(g.id, {
+                    scale: [origin, origin, pos.x, pos.y]
+                });
+                zr.resize();
+                zr.refresh();
+                offset.x += g.transform[4];
+                offset.y += g.transform[5];
+
+                zr.modShape(g.id, {
+                    position: [-offset.x, -offset.y]
+                });
+                zr.refresh();
+                return;
+            }
+            if (shape.c._name == "EllipseShape") {
+                var a = shape.c.style.a;
+                var b = shape.c.style.b;
+                a += (delta > 0 ? 1 : -1) * 10;
+                b += (delta > 0 ? 1 : -1) * 10;
+                if (a < 20) {
+                    a = 20;
+                };
+                if (b < 10) {
+                    b = 10;
+                };
+                zr.modShape(shape.c.id, {
+                    style: {
+                        a: a,
+                        b: b
+                    }
+                })
+            }
+            if (shape.c._name == "RectangleShape") {
+                var a = shape.c.style.width;
+                var b = shape.c.style.height;
+                a += (delta > 0 ? 1 : -1) * 10;
+                b += (delta > 0 ? 1 : -1) * 10;
+                if (a < 20) {
+                    a = 20;
+                };
+                if (b < 10) {
+                    b = 10;
+                };
+                zr.modShape(shape.c.id, {
+                    style: {
+                        width: a,
+                        height: b
+                    }
+                })
+            }
+            if (shape.c._name == "CircleShape") {
+                var a = shape.c.style.r;
+                a += (delta > 0 ? 1 : -1) * 10;
+                if (a < 20) {
+                    a = 20;
+                };
+                zr.modShape(shape.c.id, {
+                    style: {
+                        r: a
+                    }
+                })
+            }
+            if (shape.c._name == "TextShape") {
+
+                var font = shape.c.style.textFont.split(" ");
+                var a = parseInt(font[1].slice(0, -2));
+                a += (delta > 0 ? 1 : -1) * 10;
+                if (a < 10) {
+                    a = 10;
+                };
+                zr.modShape(shape.c.id, {
+                    style: {
+                        textFont: font[0] + " " + a + "px" + " " + font[2]
+                    }
+                })
+            }
+
+
+
+            zr.refresh();
+
+        }
+        /** operate function end**/
+
+
+        /** shape bind event **/
+        function clickHandle(params) {
+            //alert(params.target.id);
+            setSelected(params.target);
+        }
+
+        function mousedownHandle(params) {
+            // console.log('onclick:' + params.event.zrenderX, params, 'shape');
+            setSelected(params.target);
+        }
+
+        function setSelected(s) {
+
+            shape.p = shape.c;
+            shape.c = s;
+            if (shape.p != null) {
+                if (shape.p._name != "ImageShape") {
+
+                    if (shape.p._name == "TextShape") {
+                        zr.modShape(shape.p.id, {
+                            style: {
+                                color: zrColor.getColor(colorIdx),
+                            }
+                        })
+                    } else {
+                        zr.modShape(shape.p.id, {
+                            style: {
+                                color: zrColor.alpha(zrColor.getColor(colorIdx), 0),
+                            }
+                        })
+                    }
+                }
+            }
+            if (shape.c != null) {
+                if (shape.c._name != "ImageShape") {
+                    if (shape.c._name == "TextShape") {
+                        zr.modShape(shape.c.id, {
+                            style: {
+                                color: zrColor.getColor(colorIdx),
+                            }
+                        });
+                    } else {
+                        zr.modShape(shape.c.id, {
+                            style: {
+
+                                color: zrColor.alpha(zrColor.getColor(colorIdx), 0.4),
+                            }
+                        })
+                    }
+                    $("#txt").val(s.style.text);
+                    $("#modiBut").prop("disabled", false);
+                } else {
+                    $("#txt").val(shape.c.style.image);
+                    $("#modiBut").prop("disabled", true);
+                }
+            }
+            zr.refresh();
+        }
+
+        // Step:3 conifg ZRender's path, link to zrender.js from current page.
+        // Step:3 为模块加载器配置zrender的路径，从当前页面链接到zrender.js
+        require.config({
+            paths: {
+                zrender: '../plugins/zrender/js/zrender',
+                'zrender/shape/Circle': '../plugins/zrender/js/zrender',
+                'zrender/shape/Ellipse': '../plugins/zrender/js/zrender'
+            }
+        });
+
+        // Step:4 require zrender and use it in the callback.
+        // Step:4 动态加载zrender然后在回调函数中开始使用
+        require(
+            ['zrender', 'zrender/shape/Circle', 'zrender/shape/Ellipse'],
+            function(zrender) {
+                zr = zrender.init(document.getElementById('main'));
+                zr.clear();
+                zrColor = require('zrender/tool/color');
+                zrColor.customPalette(['red', 'green', 'blue', 'yellow']);
+                reset();
+
+                /*
+                //双击
+                function callBack(zr, g, pos) {
+                    if (clickCount == 2) {
+                        g.addChild(newEllipse(zr, g, pos));
+                        zr.render();
+                        console.log('dblclick' + pos);
+                        console.log(g);
+                    } else if (clickCount == 1) {
+                        console.log('click' + pos);
+                    }
+                    clickCount = 0;
+                }
+                zr.on('click', function(e) {
+                    clickCount += 1;
+                    console.log('onclick' + clickCount + e.event.zrenderX, e, 'global');
+                    pos = {
+                        'x': e.event.zrenderX,
+                        'y': e.event.zrenderY
+                    };
+                    var timer = setTimeout(function() {
+                        callBack(zr, g, pos);
+                    }, 300);
+                });
+                //双击
+                */
+
+
+                zr.render();
+
+            }
+        )
+
+
+        function newCircle(zr, z, pos) {
+            var CircleShape = require('zrender/shape/Circle');
+            return new CircleShape({
+                style: {
+                    x: pos.x,
+                    y: pos.y,
+                    r: 50,
+                    brushType: 'both',
+                    color: zrColor.alpha(zrColor.getColor(colorIdx), 0),
+                    strokeColor: zrColor.getColor(colorIdx), // getColor from default palette
+                    lineWidth: 5,
+                    text: 'circle',
+                    textPosition: 'inside'
+                },
+                hoverable: true, // default true
+                draggable: true, // default false
+                clickable: true, // default false
+                zlevel: z,
+
+                // 可自带任何有效自定义属性
+                _name: 'CircleShape',
+                onclick: clickHandle,
+                onmousedown: mousedownHandle
+            });
+        }
+
+        function newEllipse(zr, z, pos) {
+            // 椭圆
+            var EllipseShape = require('zrender/shape/Ellipse');
+            var x;
+            var y;
+            return new EllipseShape({
+                style: {
+                    x: pos.x,
+                    y: pos.y,
+                    a: 100,
+                    b: 50,
+                    brushType: 'both',
+                    color: zrColor.alpha(zrColor.getColor(colorIdx), 0),
+                    strokeColor: zrColor.getColor(colorIdx),
+                    lineWidth: 4,
+                    text: 'ellipse',
+                    textPosition: 'inside'
+                },
+                zlevel: z,
+                draggable: true,
+                clickable: true,
+                // 可自带任何有效自定义属性
+                _name: 'EllipseShape',
+                onclick: clickHandle,
+                onmousedown: mousedownHandle
+            });
+        }
+
+        function newRect(zr, z, pos) {
+            var RectangleShape = require('zrender/shape/Rectangle');
+            return new RectangleShape({
+                style: {
+                    x: pos.x,
+                    y: pos.y,
+                    width: 200,
+                    height: 100,
+                    radius: [0, 0],
+                    brushType: 'both',
+                    color: zrColor.alpha(zrColor.getColor(colorIdx), 0),
+                    strokeColor: zrColor.getColor(colorIdx),
+                    lineWidth: 8,
+                    lineJoin: 'round',
+                    text: 'rectangle',
+                    textPosition: 'inside'
+                },
+                zlevel: z,
+                draggable: true,
+                clickable: true,
+                // 可自带任何有效自定义属性
+                _name: 'RectangleShape',
+                onclick: clickHandle,
+                onmousedown: mousedownHandle
+            });
+        }
+
+        function newText(zr, z, pos) {
+
+            var TextShape = require('zrender/shape/Text');
+            // 文本
+            return new TextShape({
+                style: {
+                    x: pos.x,
+                    y: pos.y,
+                    brushType: 'fill',
+                    color: zrColor.getColor(colorIdx),
+                    //shadowColor: 'yellow',
+                    //shadowBlur: 5,
+                    lineWidth: 3,
+                    text: 'mark',
+                    textFont: 'normal 40px verdana',
+                    textAlign: 'center',
+                    textBaseline: 'top'
+                },
+                zlevel: z,
+                draggable: true,
+                clickable: true,
+                // 可自带任何有效自定义属性
+                _name: 'TextShape',
+                onclick: clickHandle,
+                onmousedown: mousedownHandle
+            });
+
+        }
+
+        function newImage(zr, g, img) {
+            // 图片
+            var id = "backimage";
+            var width = zr.getWidth();
+            var height = zr.getHeight();
+            var ImageShape = require('zrender/shape/Image');
+            return new ImageShape({
+                style: {
+                    x: 0,
+                    y: 0,
+                    image: img,
+                    width: width,
+                    height: height
+                },
+                zlevel: 0,
+                id: "backimg",
+                // draggable: true,
+                clickable: true,
+                _name: 'ImageShape',
+                onclick: function(params) {
+                    // setBackimg(backimgurl);
+                    pos = {
+                        'x': params.event.zrenderX,
+                        'y': params.event.zrenderY
+                    };
+                    var z = 1;
+                    var temp = null;
+                    switch (type) {
+                        case "N":
+                            break;
+                        case "E":
+                            temp = newEllipse(zr, z, pos);
+                            break;
+                        case "R":
+                            temp = newRect(zr, z, pos);
+                            break;
+                        case "T":
+                            temp = newText(zr, z, pos);
+                            break;
+                        case "C":
+                            temp = newCircle(zr, z, pos);
+                        default:
+                    }
+                    if (temp != null) {
+                        temp.style.text = markId;
+                        if (type != "T") {
+                            temp.style.textFont = "normal 20px verdana";
+                        }
+                        temp.style.align = "left";
+                        temp.id = markId++;
+                        g.addChild(temp);
+                        setSelected(temp);
+                        setMarkContent(UID, temp.id, "A");
+                    } else {
+                        setSelected(params.target);
+                    }
+                    type = "N";
+                    zr.render();
+                },
+                onmousedown: function(params) {
+                    // console.log('onclick:' + params.event.zrenderX, params, 'shape');
+                    //shape = params.target;
+                }
+            });
+        }
+
+        function getMousePos(event) {
+            var e = event || window.event;
+            return {
+                'x': e.clientX,
+                'y': e.clientY
+            }
+        }
+    </script>
+</body>
+<script src="../plugins/jstool/imgpreview.js"></script>
+
+</html>
